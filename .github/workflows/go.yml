@@ -26,18 +26,20 @@ jobs:
           packages: .
           flags: "-ldflags=-w -s"
           out-dir: bin
-          output: whapi
           x-flags: ""
           targets: linux/amd64,windows/amd64,darwin/arm64
 
-      - name: Zip binary
-        run: zip -j whapi.zip bin/whapi
+      - name: Package binaries
+        run: |
+          for file in bin/*; do
+            zip -j "${file}.zip" "$file"
+          done
 
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           tag_name: auto-${{ github.run_number }}
           name: Release ${{ github.run_number }}
-          files: whapi.zip
+          files: bin/*.zip
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
