@@ -1,0 +1,7 @@
+.git
+Dockerfile
+.dockerignore
+*.md
+*.pem
+*.key
+whapi.db

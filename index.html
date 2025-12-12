@@ -1,0 +1,284 @@
+<!DOCTYPE html>
+<html lang="es">
+
+<head>
+    <meta charset="UTF-8">
+    <title>Panel WhatsApp</title>
+
+    <!-- Bootstrap 5 -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/css/bootstrap.min.css" rel="stylesheet">
+
+    <!-- Bootstrap Icons -->
+    <link href="https://cdn.jsdelivr.net/npm/bootstrap-icons@1.11.3/font/bootstrap-icons.css" rel="stylesheet">
+
+    <!-- Vue 2 -->
+    <script src="https://cdn.jsdelivr.net/npm/vue@2/dist/vue.js"></script>
+
+    <!-- SweetAlert -->
+    <script src="https://cdn.jsdelivr.net/npm/sweetalert2@11"></script>
+
+</head>
+
+<body class="bg-light">
+
+<div id="app" class="container py-4">
+
+    <!-- LOADING -->
+    <div v-if="connecting" class="text-center my-5">
+        <div class="spinner-border text-primary" role="status"></div>
+        <div class="mt-3 fs-5 text-primary fw-semibold">Conectando...</div>
+    </div>
+
+    <div v-if="!connecting">
+
+        <!-- LISTA DE TELÉFONOS -->
+        <div v-if="phone == null">
+
+            <div class="d-flex justify-content-between align-items-center mb-3">
+                <h4 class="fw-bold">Dispositivos WhatsApp</h4>
+
+                <button class="btn btn-primary" @click="newPhone">
+                    <i class="bi bi-plus-circle"></i> Nuevo Número
+                </button>
+            </div>
+
+            <!-- QR -->
+            <div v-if="qr.length > 0" class="d-flex justify-content-center mb-4">
+                <div class="card shadow-sm p-3" style="max-width: 280px">
+                    <img :src="qr" class="img-fluid mb-2">
+                    <div class="alert alert-warning text-center py-1">
+                        Escanee el código
+                    </div>
+                </div>
+            </div>
+
+            <div class="mb-3 fw-semibold">
+                Webhook: <span class="text-primary">{{ env.webhooks }}</span>
+            </div>
+
+            <!-- TABLA DE TELÉFONOS -->
+            <div class="table-responsive">
+                <table class="table table-bordered table-hover align-middle">
+                    <thead class="table-light">
+                    <tr>
+                        <th>Usuario</th>
+                        <th>Nombre</th>
+                        <th>Descripción</th>
+                        <th>Estado</th>
+                        <th class="text-center">Acciones</th>
+                    </tr>
+                    </thead>
+                    <tbody>
+                    <tr v-for="phone in phones">
+                        <td>{{ phone.user }}</td>
+                        <td>{{ phone.pushName }}</td>
+                        <td>{{ phone.description }}</td>
+
+                        <td>
+                            <span v-if="phone.status=='ACTIVE'" class="badge bg-success">Activo</span>
+                            <span v-else class="badge bg-secondary">{{ phone.status }}</span>
+                        </td>
+
+                        <td class="text-center">
+                            <button class="btn btn-success btn-sm"
+                                    @click="connect(phone.user)">
+                                <i class="bi bi-link-45deg"></i> Conectarse
+                            </button>
+                        </td>
+                    </tr>
+                    </tbody>
+                </table>
+            </div>
+
+        </div>
+
+
+        <!-- PANEL DEL TELÉFONO ACTIVO -->
+        <div v-if="phone != null">
+
+            <div class="card shadow-sm mb-3">
+                <div class="card-body">
+                    <h4 class="fw-bold">{{ phone.name }}</h4>
+
+                    <p class="mb-1">
+                        <b>Estado:</b>
+                        <span v-if="phone.status=='ACTIVE'" class="badge bg-success">Activo</span>
+                        <span v-else class="badge bg-secondary">{{ phone.status }}</span>
+                    </p>
+
+                    <p>
+                        <b>Info:</b> {{ phone }}
+                    </p>
+
+                    <!-- BOTÓN RECONEXIÓN -->
+                    <button v-if="phone.status == 'INACTIVE'"
+                            class="btn btn-success"
+                            @click="reconnect(phone.user)">
+                        <i class="bi bi-arrow-repeat"></i> Reconectar
+                    </button>
+                </div>
+            </div>
+
+            <!-- ENVÍO DE MENSAJES -->
+            <div v-if="phone.status == 'ACTIVE'" class="card shadow-sm">
+                <div class="card-body">
+
+                    <h5 class="fw-bold mb-3">
+                        <i class="bi bi-chat-left-text"></i> Enviar Mensaje
+                    </h5>
+
+                    <div class="mb-3">
+                        <label class="form-label">Destinatario</label>
+                        <input v-model="message.to" type="text" class="form-control" placeholder="Ej. 593999999999">
+                    </div>
+
+                    <div class="mb-3">
+                        <label class="form-label">Mensaje</label>
+                        <textarea v-model="message.message" class="form-control" rows="3"></textarea>
+                    </div>
+
+                    <button class="btn btn-primary"
+                            @click="sendMessage">
+                        <i class="bi bi-send"></i> Enviar
+                    </button>
+
+                </div>
+            </div>
+
+        </div>
+    </div>
+
+
+    <!-- MODAL BOOTSTRAP -->
+    <div class="modal fade" id="modal" tabindex="-1">
+        <div class="modal-dialog modal-dialog-centered">
+            <div class="modal-content">
+
+                <div class="modal-header">
+                    <h5 class="modal-title">Título del Modal</h5>
+                    <button class="btn-close" data-bs-dismiss="modal"></button>
+                </div>
+
+                <div class="modal-body">
+                    Este es el contenido del modal.
+                </div>
+
+                <div class="modal-footer">
+                    <button class="btn btn-secondary" data-bs-dismiss="modal">Cerrar</button>
+                    <button class="btn btn-primary">Aceptar</button>
+                </div>
+
+            </div>
+        </div>
+    </div>
+
+</div>
+
+<!-- JS Bootstrap -->
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.3/dist/js/bootstrap.bundle.min.js"></script>
+
+
+<script>
+    new Vue({
+        el: "#app",
+        data: {
+            connecting: false,
+            qr: '',
+            phone: null,
+            phones: [],
+            env: { webhook: "" },
+            server: "http://localhost:8080/v1",
+            key: "",
+            message: { to: "", message: "" }
+        },
+        methods: {
+
+            openModal() {
+                new bootstrap.Modal(document.getElementById("modal")).show();
+            },
+
+            sendMessage() {
+                const formData = new FormData();
+
+                formData.append("from", this.phone.user);
+                formData.append("to", this.message.to);
+                formData.append("type", "text");
+                formData.append("text", this.message.message);
+
+                fetch(this.server + "/messages", {
+                    method: "POST",
+                    headers: { "token": this.key },
+                    body: formData
+                })
+                    .then(r => r.json())
+                    .then(result => {
+                        Swal.fire('', result.data.message, 'success');
+                    })
+                    .catch(error => {
+                        Swal.fire('', "Error en el servidor de whatsapp", 'warning');
+                    });
+            },
+
+            newPhone() {
+                fetch(this.server + "/login", {
+                    headers: { 'token': this.key }
+                })
+                    .then(r => r.json())
+                    .then(result => {
+                        this.qr = "data:image/png;base64," + result.qr;
+                    });
+            },
+
+            envUpdate() {
+                fetch(this.server + "/env", {
+                    headers: { 'token': this.key }
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        this.env = res.data;
+                    });
+            },
+
+            getPhones() {
+                fetch(this.server + "/devices", {
+                    headers: { 'token': this.key }
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        this.phones = res.data;
+                    });
+            },
+
+            connect(phoneUser) {
+                this.connecting = true;
+
+                fetch(this.server + "/device?phone=" + phoneUser, {
+                    headers: { 'token': this.key }
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        this.phone = res.data;
+                    })
+                    .finally(() => this.connecting = false);
+            },
+
+            reconnect(user) {
+                fetch(this.server + "/reconnect?phone=" + user, {
+                    headers: { 'token': this.key }
+                })
+                    .then(r => r.json())
+                    .then(res => {
+                        Swal.fire('', res.data, 'success');
+                    });
+            }
+        },
+
+        mounted() {
+            this.envUpdate();
+            this.getPhones();
+        }
+    });
+</script>
+
+</body>
+</html>

@@ -1,0 +1,6 @@
+.env
+base_device.db
+cert.pem
+key.pem
+medias
+.idea

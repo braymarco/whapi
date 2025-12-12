@@ -1,0 +1,244 @@
+openapi: 3.0.0
+info:
+  title: WhatsApp Wrapper API (WhatsMeow)
+  description: API para controlar un cliente de WhatsApp utilizando la librería WhatsMeow y Gin Gonic.
+  version: 1.0.1
+servers:
+  - url: http://localhost:8080
+    description: Servidor Local
+
+components:
+  securitySchemes:
+    ApiTokenAuth:
+      type: apiKey
+      in: header
+      name: Token
+      description: Token de seguridad definido en la variable de entorno KEY.
+  schemas:
+    DeviceJson:
+          type: object
+          properties:
+            user:
+              type: string
+              description: ID del usuario (JID/Teléfono)
+            pushName:
+              type: string
+              description: Nombre público de WhatsApp
+            status:
+              type: string
+              enum: [ACTIVE, INACTIVE]
+              description: Estado de conexión del cliente en memoria
+
+security:
+  - ApiTokenAuth: []
+
+paths:
+  /:
+    get:
+      summary: Verificar estado de la API
+      description: Endpoint público para comprobar si el servidor está en línea. No requiere autenticación.
+      security: [] # Este endpoint es público
+      responses:
+        '200':
+          description: Servidor activo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: "OK"
+
+  /v1/login:
+    get:
+      summary: Iniciar sesión / Generar QR
+      description: |
+        Crea una nueva sesión y devuelve el código QR en Base64.
+        **Nota:** Aunque el método es GET, el servidor espera un cuerpo JSON con el `apiToken`.
+      requestBody:
+        required: false
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                apiToken:
+                  type: string
+                  description: Token opcional para validaciones futuras (según struct LoginForm).
+      responses:
+        '200':
+          description: QR generado exitosamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  uuid:
+                    type: string
+                    description: ID de la sesión temporal
+                  qr:
+                    type: string
+                    description: Imagen del código QR en formato Base64
+        '500':
+          description: Error al conectar o generar QR
+        '504':
+          description: Timeout esperando el código QR
+
+  /v1/reconnect:
+    get:
+      summary: Reconectar sesión existente
+      parameters:
+        - in: query
+          name: phone
+          schema:
+            type: string
+          required: true
+          description: Número de teléfono (ID de usuario) para reconectar.
+      responses:
+        '200':
+          description: Dispositivo encontrado e iniciando cliente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "Device found - Start Client"
+        '404':
+          description: Cliente no encontrado
+        '500':
+          description: Error interno al intentar reconectar
+
+  /v1/device:
+    get:
+      summary: Obtener información de un dispositivo específico
+      parameters:
+        - in: query
+          name: phone
+          schema:
+            type: string
+          required: true
+          description: Número de teléfono a consultar.
+      responses:
+        '200':
+          description: Información del dispositivo
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/DeviceJson'
+        '404':
+          description: Cliente no encontrado
+
+  /v1/devices:
+    get:
+      summary: Listar todos los dispositivos
+      responses:
+        '200':
+          description: Lista de todos los dispositivos registrados en la base de datos y su estado.
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/DeviceJson'
+
+  /v1/messages:
+    post:
+      summary: Enviar mensaje
+      description: Envía texto, imágenes, audio, video o documentos.
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - from
+                - to
+                - type
+              properties:
+                from:
+                  type: string
+                  description: ID del dispositivo remitente (número de teléfono registrado).
+                to:
+                  type: string
+                  description: ID del destinatario (número o ID de grupo).
+                type:
+                  type: string
+                  enum: [text, group_text, image, audio, document, video]
+                  description: Tipo de mensaje a enviar.
+                text:
+                  type: string
+                  description: Contenido del mensaje de texto o caption (descripción) del archivo.
+                file:
+                  type: string
+                  format: binary
+                  description: Archivo a enviar (requerido si type no es text/group_text).
+                fileName:
+                  type: string
+                  description: Nombre opcional para el archivo (útil para documentos).
+      responses:
+        '200':
+          description: Mensaje enviado correctamente
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+                    example: "Mensaje Enviado"
+                  data:
+                    type: object
+                    description: Respuesta interna de Whatsmeow
+        '400':
+          description: Error en parámetros o memoria insuficiente
+        '404':
+          description: Cliente remitente no encontrado
+        '500':
+          description: Error interno al enviar
+
+  /v1/env:
+    get:
+      summary: Obtener configuración de entorno actual
+      responses:
+        '200':
+          description: Devuelve los webhooks configurados
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      webhooks:
+                        type: array
+                        items:
+                          type: string
+
+  /v1/load_env:
+    get:
+      summary: Recargar variables de entorno
+      description: Fuerza una recarga del archivo .env sin reiniciar el servidor.
+      responses:
+        '200':
+          description: Variables recargadas
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: string
+                    example: "ok"
+        '500':
+          description: Error al cargar variables
