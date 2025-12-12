@@ -28,6 +28,7 @@ jobs:
           out-dir: bin
           output: whapi
           x-flags: ""
+          targets: linux/amd64,windows/amd64,darwin/arm64
 
       - name: Zip binary
         run: zip -j whapi.zip bin/whapi
