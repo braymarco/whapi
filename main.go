@@ -490,6 +490,7 @@ func (cm *ClientManager) Delete(id string) {
 }
 
 var globalKey string
+var adminAuth string
 var webhookKey string
 var webhook []string
 var osName string
@@ -519,8 +520,20 @@ func initServer() {
 	config.AllowCredentials = true
 	config.AddAllowHeaders("token")
 	router.Use(cors.New(config))
+	router.LoadHTMLFiles("index.html")
 
 	router.GET("/", infoApi)
+	parts := strings.SplitN(adminAuth, ":", 2)
+	if len(parts) == 2 && parts[0] != "" && parts[1] != "" {
+		router.GET(
+			"/admin",
+			basicAuthFromString(adminAuth),
+			adminIndex,
+		)
+	} else {
+		log.Println("ADMIN_AUTH no definido o inválido, /admin deshabilitado")
+	}
+
 	v1 := router.Group("/v1", authMiddleware())
 	{
 		v1.GET("/login", login)
@@ -546,6 +559,26 @@ func initServer() {
 		return
 	}
 
+}
+func basicAuthFromString(userPass string) gin.HandlerFunc {
+	parts := strings.SplitN(userPass, ":", 2)
+	user := parts[0]
+	pass := ""
+	if len(parts) == 2 {
+		pass = parts[1]
+	}
+
+	return gin.BasicAuth(gin.Accounts{
+		user: pass,
+	})
+}
+func adminIndex(c *gin.Context) {
+	serverURL := "/v1"
+
+	c.HTML(http.StatusOK, "index.html", gin.H{
+		"ServerURL": serverURL,
+		"Key":       globalKey,
+	})
 }
 
 type envData struct {
@@ -609,6 +642,10 @@ func env() bool {
 	serverAddress, ok = os.LookupEnv("SERVER_ADDRESS")
 	if !ok {
 		log.Fatal("SERVER_ADDRESS in env not found")
+	}
+	adminAuth, ok = os.LookupEnv("ADMIN_AUTH")
+	if !ok {
+		log.Fatal("ADMIN_AUTH in env not found")
 	}
 	sslActiveTmp, ok := os.LookupEnv("SSL_ACTIVE")
 	if !ok {
@@ -1192,7 +1229,7 @@ func oneShotMonitor(qrChan <-chan whatsmeow.QRChannelItem, cli *whatsmeow.Client
 			fmt.Println("¡Éxito! Login completado para:", uuidSession)
 
 			currentSession, _ := clManager.Get(uuidSession)
-			clManager.Add(uuidSession, currentSession)
+			clManager.Add(currentSession.WAClient.Store.ID.User, currentSession)
 			clManager.Delete(uuidSession)
 
 			return

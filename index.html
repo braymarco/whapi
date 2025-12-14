@@ -53,7 +53,7 @@
             </div>
 
             <div class="mb-3 fw-semibold">
-                Webhook: <span class="text-primary">{{ env.webhooks }}</span>
+                Webhook: <span class="text-primary">{% env.webhooks %}</span>
             </div>
 
             <!-- TABLA DE TELÉFONOS -->
@@ -70,13 +70,13 @@
                     </thead>
                     <tbody>
                     <tr v-for="phone in phones">
-                        <td>{{ phone.user }}</td>
-                        <td>{{ phone.pushName }}</td>
-                        <td>{{ phone.description }}</td>
+                        <td>{% phone.user %}</td>
+                        <td>{% phone.pushName %}</td>
+                        <td>{% phone.description %}</td>
 
                         <td>
                             <span v-if="phone.status=='ACTIVE'" class="badge bg-success">Activo</span>
-                            <span v-else class="badge bg-secondary">{{ phone.status }}</span>
+                            <span v-else class="badge bg-secondary">{% phone.status %}</span>
                         </td>
 
                         <td class="text-center">
@@ -98,16 +98,16 @@
 
             <div class="card shadow-sm mb-3">
                 <div class="card-body">
-                    <h4 class="fw-bold">{{ phone.name }}</h4>
+                    <h4 class="fw-bold">{% phone.name %}</h4>
 
                     <p class="mb-1">
                         <b>Estado:</b>
                         <span v-if="phone.status=='ACTIVE'" class="badge bg-success">Activo</span>
-                        <span v-else class="badge bg-secondary">{{ phone.status }}</span>
+                        <span v-else class="badge bg-secondary">{% phone.status %}</span>
                     </p>
 
                     <p>
-                        <b>Info:</b> {{ phone }}
+                        <b>Info:</b> {% phone %}
                     </p>
 
                     <!-- BOTÓN RECONEXIÓN -->
@@ -181,14 +181,15 @@
 <script>
     new Vue({
         el: "#app",
+        delimiters: ['{%', '%}'],
         data: {
             connecting: false,
             qr: '',
             phone: null,
             phones: [],
             env: { webhook: "" },
-            server: "http://localhost:8080/v1",
-            key: "",
+            server: "{{.ServerURL}}",
+            key: "{{.Key}}",
             message: { to: "", message: "" }
         },
         methods: {
